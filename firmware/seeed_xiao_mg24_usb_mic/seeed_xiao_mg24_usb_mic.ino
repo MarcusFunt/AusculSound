@@ -1,12 +1,9 @@
-#include <SilabsMicrophoneAnalog.h>
+#include <mic.h>
 
-// Microphone wiring for the Seeed Studio XIAO MG24 Sense.
-// PC9 is the analog output of the onboard MEMS microphone and PC8 provides its
-// power rail.
-constexpr uint8_t kMicDataPin = PC9;
-constexpr uint8_t kMicPowerPin = PC8;
+#include <cstring>
 
 // Audio configuration. Increase NUM_SAMPLES to trade latency for throughput.
+constexpr uint32_t kSampleRateHz = 16000;
 constexpr size_t NUM_SAMPLES = 256;
 
 // The ADC on the MG24 delivers 12-bit samples. Convert them to signed 16-bit
@@ -22,17 +19,26 @@ constexpr uint8_t kAdcToPcmShift = 16 - 12; // Shift left by 4 bits
 #define USB_SERIAL Serial
 #endif
 
-// DMA buffer owned by the microphone driver and a local copy used for
-// processing while the next block is captured.
-static uint32_t s_dmaBuffer[NUM_SAMPLES];
-static uint32_t s_localBuffer[NUM_SAMPLES];
+// Local copies of each DMA block and the converted PCM data that is written
+// to the USB serial connection.
+static uint16_t s_captureBuffer[NUM_SAMPLES];
+static uint16_t s_processingBuffer[NUM_SAMPLES];
 static int16_t s_pcmBuffer[NUM_SAMPLES];
 
 static volatile bool s_samplesReady = false;
-static MicrophoneAnalog s_mic(kMicDataPin, kMicPowerPin);
+static volatile size_t s_samplesCaptured = 0;
 
-static void onSamplesReady();
-static void streamPcmBlock();
+static mic_config_t s_micConfig{
+    .channel_cnt = 1,
+    .sampling_rate = kSampleRateHz,
+    .buf_size = NUM_SAMPLES,
+    .debug_pin = 0,
+};
+
+static MG24_ADC_Class s_mic(&s_micConfig);
+
+static void onSamplesReady(uint16_t *buffer, uint32_t length);
+static void streamPcmBlock(const uint16_t *buffer, size_t samples);
 
 void setup() {
   USB_SERIAL.begin(115200);
@@ -41,48 +47,56 @@ void setup() {
     delay(10);
   }
 
-  // Prepare the microphone driver and begin sampling immediately.
-  s_mic.begin(s_dmaBuffer, NUM_SAMPLES);
-  s_mic.startSampling(onSamplesReady);
+  s_mic.set_callback(onSamplesReady);
+  if (!s_mic.begin()) {
+    USB_SERIAL.println(F("Microphone init failed"));
+    while (true) {
+      delay(1000);
+    }
+  }
 
   USB_SERIAL.println(F("XIAO MG24 microphone streaming over USB CDC"));
-  USB_SERIAL.println(F("Source: SilabsMicrophoneAnalog DMA"));
+  USB_SERIAL.println(F("Source: Seeed Arduino Mic DMA"));
 }
 
 void loop() {
-  if (!s_samplesReady) {
+  size_t samples = 0;
+
+  noInterrupts();
+  if (s_samplesReady) {
+    samples = min(s_samplesCaptured, static_cast<size_t>(NUM_SAMPLES));
+    memcpy(s_processingBuffer, s_captureBuffer, samples * sizeof(uint16_t));
+    s_samplesReady = false;
+  }
+  interrupts();
+
+  if (samples == 0) {
     return;
   }
 
-  noInterrupts();
-  bool ready = s_samplesReady;
-  s_samplesReady = false;
-  interrupts();
-
-  if (ready) {
-    streamPcmBlock();
-  }
+  streamPcmBlock(s_processingBuffer, samples);
 }
 
-static void onSamplesReady() {
-  memcpy(s_localBuffer, s_dmaBuffer, sizeof(s_dmaBuffer));
+static void onSamplesReady(uint16_t *buffer, uint32_t length) {
+  if (length == 0) {
+    return;
+  }
+
+  size_t samples = min(static_cast<size_t>(length), NUM_SAMPLES);
+  memcpy(s_captureBuffer, buffer, samples * sizeof(uint16_t));
+
+  s_samplesCaptured = samples;
   s_samplesReady = true;
 }
 
-static void streamPcmBlock() {
-  // Halt sampling while we convert the freshly captured block to PCM.
-  s_mic.stopSampling();
-
-  for (size_t i = 0; i < NUM_SAMPLES; ++i) {
-    int32_t sample = static_cast<int32_t>(s_localBuffer[i]);
+static void streamPcmBlock(const uint16_t *buffer, size_t samples) {
+  for (size_t i = 0; i < samples; ++i) {
+    int32_t sample = static_cast<int32_t>(buffer[i]);
     sample -= kAdcMidpoint;
     sample <<= kAdcToPcmShift;
     s_pcmBuffer[i] = static_cast<int16_t>(sample);
   }
 
-  const size_t bytesToWrite = NUM_SAMPLES * sizeof(s_pcmBuffer[0]);
+  const size_t bytesToWrite = samples * sizeof(s_pcmBuffer[0]);
   USB_SERIAL.write(reinterpret_cast<uint8_t *>(s_pcmBuffer), bytesToWrite);
-
-  // Resume capturing the next block.
-  s_mic.startSampling(onSamplesReady);
 }
