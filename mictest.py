@@ -16,15 +16,11 @@ ser = serial.Serial(SERIAL_PORT, BAUDRATE)
 def audio_callback(outdata, frames, time, status):
     if status:
         print(status)
-    # Each sample is 2 bytes (uint16 little-endian)
+    # Each sample is 2 bytes (little-endian signed PCM from the firmware)
     expected_bytes = CHUNK_SAMPLES * 2
     raw = ser.read(expected_bytes)
-    # Convert to numpy array
-    samples = np.frombuffer(raw, dtype=np.uint16)
-    # The firmware sends 12-bit values (0–4095) in a 16-bit word.
-    # Convert to signed 16-bit PCM centered at 0.
-    samples = samples.astype(np.int32) - 2048
-    samples = (samples << 4).astype(np.int16)  # scale 12-bit to 16-bit
+    # Convert to numpy array of signed 16-bit samples
+    samples = np.frombuffer(raw, dtype=np.int16)
     outdata[:len(samples), 0] = samples / 32768.0  # normalize to [-1, 1]
 
 # Open an audio output stream
