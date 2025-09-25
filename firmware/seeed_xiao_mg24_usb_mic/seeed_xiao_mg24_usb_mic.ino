@@ -8,6 +8,11 @@ constexpr uint8_t kMicAnalogPin = PC9;
 constexpr uint32_t SAMPLE_RATE_HZ = 16000;
 constexpr size_t SAMPLES_PER_TRANSFER = 256;
 
+// The ADC on the MG24 is 12 bits wide. Centre the waveform around 0 and scale
+// it up to fill a signed 16-bit sample for transmission over USB.
+constexpr int16_t kAdcMidpoint = 1 << 11;           // 2048
+constexpr uint8_t kAdcToPcmShift = 16 - 12;         // Shift left by 4 bits
+
 // Derived constants.
 constexpr uint32_t kSamplePeriodUs = 1000000UL / SAMPLE_RATE_HZ;
 
@@ -40,7 +45,7 @@ void setup() {
 }
 
 void loop() {
-  static uint16_t buffer[SAMPLES_PER_TRANSFER];
+  static int16_t buffer[SAMPLES_PER_TRANSFER];
   static size_t writeIndex = 0;
   static uint32_t nextSampleTimeUs = micros();
 
@@ -50,7 +55,10 @@ void loop() {
 
     // Read the raw 12-bit microphone value (0-4095). The result is stored as a
     // 16-bit word to simplify transmission as little-endian PCM samples.
-    buffer[writeIndex++] = analogRead(kMicAnalogPin);
+    int32_t sample = static_cast<int32_t>(analogRead(kMicAnalogPin));
+    sample -= kAdcMidpoint;
+    sample <<= kAdcToPcmShift;
+    buffer[writeIndex++] = static_cast<int16_t>(sample);
 
     if (writeIndex >= SAMPLES_PER_TRANSFER) {
       const size_t bytesToWrite = SAMPLES_PER_TRANSFER * sizeof(buffer[0]);
