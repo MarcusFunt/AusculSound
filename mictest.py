@@ -1,16 +1,27 @@
-import serial
+"""Stream audio from the XIAO MG24 microphone over USB CDC.
+
+The firmware uses the Seeed Arduino Mic DMA driver and streams 16-bit PCM
+blocks. This helper script connects to the enumerated serial port and plays the
+incoming audio via the system's default audio output.
+"""
+
+import time
+
 import numpy as np
+import serial
 import sounddevice as sd
 
 # Serial port where the XIAO MG24 shows up.
 # On Windows it might be "COM3", on Linux "/dev/ttyACM0" or "/dev/ttyUSB0"
-SERIAL_PORT = "COM8"    # <-- change this to match your system
+SERIAL_PORT = "COM8"  # <-- change this to match your system
 BAUDRATE = 921600
-SAMPLE_RATE = 8000
-CHUNK_SAMPLES = 256     # must match firmware's SAMPLES_PER_TRANSFER
+SAMPLE_RATE = 16000
+CHUNK_SAMPLES = 256  # Must match NUM_SAMPLES in the firmware sketch.
 
-# Open serial connection
+# Open serial connection and flush any banner text from the firmware.
 ser = serial.Serial(SERIAL_PORT, BAUDRATE)
+time.sleep(0.5)
+ser.reset_input_buffer()
 
 # Callback to continuously stream audio
 def audio_callback(outdata, frames, time, status):
