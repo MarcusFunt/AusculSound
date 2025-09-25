@@ -1,20 +1,18 @@
-#include <Arduino.h>
+#include <SilabsMicrophoneAnalog.h>
 
-// Analog microphone pin for the onboard MEMS microphone.
-// The Seeed XIAO MG24 routes the microphone output to PC9.
-constexpr uint8_t kMicAnalogPin = PC9;
+// Microphone wiring for the Seeed Studio XIAO MG24 Sense.
+// PC9 is the analog output of the onboard MEMS microphone and PC8 provides its
+// power rail.
+constexpr uint8_t kMicDataPin = PC9;
+constexpr uint8_t kMicPowerPin = PC8;
 
-// Audio configuration. Adjust SAMPLE_RATE_HZ to match the bandwidth you need.
-constexpr uint32_t SAMPLE_RATE_HZ = 16000;
-constexpr size_t SAMPLES_PER_TRANSFER = 256;
+// Audio configuration. Increase NUM_SAMPLES to trade latency for throughput.
+constexpr size_t NUM_SAMPLES = 256;
 
-// The ADC on the MG24 is 12 bits wide. Centre the waveform around 0 and scale
-// it up to fill a signed 16-bit sample for transmission over USB.
-constexpr int16_t kAdcMidpoint = 1 << 11;           // 2048
-constexpr uint8_t kAdcToPcmShift = 16 - 12;         // Shift left by 4 bits
-
-// Derived constants.
-constexpr uint32_t kSamplePeriodUs = 1000000UL / SAMPLE_RATE_HZ;
+// The ADC on the MG24 delivers 12-bit samples. Convert them to signed 16-bit
+// PCM centred around zero for USB transmission.
+constexpr int16_t kAdcMidpoint = 1 << 11;   // 2048
+constexpr uint8_t kAdcToPcmShift = 16 - 12; // Shift left by 4 bits
 
 // Helper macro to pick the correct USB CDC serial port symbol provided by the
 // Seeed Studio MG24 Arduino core.
@@ -24,46 +22,67 @@ constexpr uint32_t kSamplePeriodUs = 1000000UL / SAMPLE_RATE_HZ;
 #define USB_SERIAL Serial
 #endif
 
+// DMA buffer owned by the microphone driver and a local copy used for
+// processing while the next block is captured.
+static uint32_t s_dmaBuffer[NUM_SAMPLES];
+static uint32_t s_localBuffer[NUM_SAMPLES];
+static int16_t s_pcmBuffer[NUM_SAMPLES];
+
+static volatile bool s_samplesReady = false;
+static MicrophoneAnalog s_mic(kMicDataPin, kMicPowerPin);
+
+static void onSamplesReady();
+static void streamPcmBlock();
+
 void setup() {
-  // Initialise the USB CDC interface. The baud rate argument is ignored for
-  // native USB devices but is kept for compatibility with serial monitors.
   USB_SERIAL.begin(115200);
   uint32_t start = millis();
   while (!USB_SERIAL && (millis() - start < 5000)) {
     delay(10);
   }
 
-  // Configure the ADC resolution to the native 12 bits of the MG24 and set the
-  // microphone pin as an input.
-  analogReadResolution(12);
-  pinMode(kMicAnalogPin, INPUT);
+  // Prepare the microphone driver and begin sampling immediately.
+  s_mic.begin(s_dmaBuffer, NUM_SAMPLES);
+  s_mic.startSampling(onSamplesReady);
 
   USB_SERIAL.println(F("XIAO MG24 microphone streaming over USB CDC"));
-  USB_SERIAL.print(F("Sample rate: "));
-  USB_SERIAL.print(SAMPLE_RATE_HZ);
-  USB_SERIAL.println(F(" Hz"));
+  USB_SERIAL.println(F("Source: SilabsMicrophoneAnalog DMA"));
 }
 
 void loop() {
-  static int16_t buffer[SAMPLES_PER_TRANSFER];
-  static size_t writeIndex = 0;
-  static uint32_t nextSampleTimeUs = micros();
+  if (!s_samplesReady) {
+    return;
+  }
 
-  uint32_t now = micros();
-  if ((int32_t)(now - nextSampleTimeUs) >= 0) {
-    nextSampleTimeUs += kSamplePeriodUs;
+  noInterrupts();
+  bool ready = s_samplesReady;
+  s_samplesReady = false;
+  interrupts();
 
-    // Read the raw 12-bit microphone value (0-4095). The result is stored as a
-    // 16-bit word to simplify transmission as little-endian PCM samples.
-    int32_t sample = static_cast<int32_t>(analogRead(kMicAnalogPin));
+  if (ready) {
+    streamPcmBlock();
+  }
+}
+
+static void onSamplesReady() {
+  memcpy(s_localBuffer, s_dmaBuffer, sizeof(s_dmaBuffer));
+  s_samplesReady = true;
+}
+
+static void streamPcmBlock() {
+  // Halt sampling while we convert the freshly captured block to PCM.
+  s_mic.stopSampling();
+
+  for (size_t i = 0; i < NUM_SAMPLES; ++i) {
+    int32_t sample = static_cast<int32_t>(s_localBuffer[i]);
     sample -= kAdcMidpoint;
     sample <<= kAdcToPcmShift;
-    buffer[writeIndex++] = static_cast<int16_t>(sample);
-
-    if (writeIndex >= SAMPLES_PER_TRANSFER) {
-      const size_t bytesToWrite = SAMPLES_PER_TRANSFER * sizeof(buffer[0]);
-      USB_SERIAL.write(reinterpret_cast<uint8_t *>(buffer), bytesToWrite);
-      writeIndex = 0;
-    }
+    s_pcmBuffer[i] = static_cast<int16_t>(sample);
   }
+
+  const size_t bytesToWrite = NUM_SAMPLES * sizeof(s_pcmBuffer[0]);
+  USB_SERIAL.write(reinterpret_cast<uint8_t *>(s_pcmBuffer), bytesToWrite);
+
+  // Resume capturing the next block.
+  s_mic.startSampling(onSamplesReady);
 }
