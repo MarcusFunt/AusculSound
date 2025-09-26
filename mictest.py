@@ -13,8 +13,11 @@ import sounddevice as sd
 
 # Serial port where the XIAO MG24 shows up.
 # On Windows it might be "COM3", on Linux "/dev/ttyACM0" or "/dev/ttyUSB0"
+# NOTE: The firmware initializes the USB CDC interface at 115200 baud. Using a
+# different rate here will result in corrupted PCM bytes (heard as loud static)
+# on traditional UART bridges, so keep these values in sync.
 SERIAL_PORT = "COM8"  # <-- change this to match your system
-BAUDRATE = 921600
+BAUDRATE = 115200
 SAMPLE_RATE = 16000
 CHUNK_SAMPLES = 256  # Must match NUM_SAMPLES in the firmware sketch.
 
