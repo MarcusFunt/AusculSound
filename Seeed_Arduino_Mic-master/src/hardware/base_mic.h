@@ -93,6 +93,9 @@ public:
   uint16_t *buf_0;    // ADC results array 0
   uint16_t *buf_1;    // ADC results array 1
 
+  static uint16_t *completed_buffer_from_sequence(unsigned int sequence_no);
+  static uint8_t buffer_index_from_sequence(unsigned int sequence_no);
+
   inline static uint8_t *_buf_count_ptr = NULL;
   inline static uint32_t *_buf_size_ptr = NULL;
   inline static uint16_t *buf_0_ptr = NULL;
