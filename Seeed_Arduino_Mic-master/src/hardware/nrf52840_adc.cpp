@@ -138,7 +138,7 @@ if (nrf_pdm_event_check(NRF_PDM_EVENT_STARTED)) {
     nrf_pdm_event_clear(NRF_PDM_EVENT_STARTED);
 
     // Debug: make pin high before copying buffer
-    if (*NRF52840_ADC_Class::_debug_pin_ptr) 
+    if (NRF52840_ADC_Class::_debug_pin_ptr && *NRF52840_ADC_Class::_debug_pin_ptr)
         digitalWrite(*NRF52840_ADC_Class::_debug_pin_ptr, HIGH);
 
     // switch to fill
@@ -168,7 +168,7 @@ if (nrf_pdm_event_check(NRF_PDM_EVENT_STARTED)) {
     *NRF52840_ADC_Class::_buf_count_ptr = (*NRF52840_ADC_Class::_buf_count_ptr + 1) % 2;
 
     // Debug: make pin low after copying buffer
-    if (*NRF52840_ADC_Class::_debug_pin_ptr) 
+    if (NRF52840_ADC_Class::_debug_pin_ptr && *NRF52840_ADC_Class::_debug_pin_ptr)
         digitalWrite(*NRF52840_ADC_Class::_debug_pin_ptr, LOW);
 
   } else if (nrf_pdm_event_check(NRF_PDM_EVENT_STOPPED)) {

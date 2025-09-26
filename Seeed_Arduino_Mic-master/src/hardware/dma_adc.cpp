@@ -116,8 +116,8 @@ void DMAC_1_Handler() {
   if (DMAC->Channel[1].CHINTFLAG.bit.SUSP) {
 
      // Debug: make pin high before copying buffer
-    if (*DMA_ADC_Class::_debug_pin_ptr) {
-    digitalWrite(*DMA_ADC_Class::_debug_pin_ptr, HIGH);
+    if (DMA_ADC_Class::_debug_pin_ptr && *DMA_ADC_Class::_debug_pin_ptr) {
+      digitalWrite(*DMA_ADC_Class::_debug_pin_ptr, HIGH);
     }
 
     // Restart DMAC on channel 1 and clear SUSP interrupt flag
@@ -135,8 +135,8 @@ void DMAC_1_Handler() {
     *DMA_ADC_Class::_buf_count_ptr = (*DMA_ADC_Class::_buf_count_ptr + 1) % 2;
 
     // Debug: make pin low after copying buffer
-    if (*DMA_ADC_Class::_debug_pin_ptr) {
-    digitalWrite(*DMA_ADC_Class::_debug_pin_ptr, LOW);
+    if (DMA_ADC_Class::_debug_pin_ptr && *DMA_ADC_Class::_debug_pin_ptr) {
+      digitalWrite(*DMA_ADC_Class::_debug_pin_ptr, LOW);
     }
   }
 }
