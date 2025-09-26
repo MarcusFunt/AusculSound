@@ -70,9 +70,12 @@ uint8_t MG24_ADC_Class::initLDMA() {
     // Allocate DMA channel
     status = DMADRV_AllocateChannel(&this->dma_channel, NULL);
     if (status != ECODE_EMDRV_DMADRV_OK) {
+#if defined(DEBUG)
+        Serial.println(F("Failed to allocate DMADRV channel"));
+#endif
         return 0;
     }
-    DMADRV_PeripheralMemoryPingPong(
+    status = DMADRV_PeripheralMemoryPingPong(
         this->dma_channel,
         dmadrvPeripheralSignal_IADC0_IADC_SCAN,
         buf_0,
@@ -83,6 +86,15 @@ uint8_t MG24_ADC_Class::initLDMA() {
         dmadrvDataSize2,
         dmaCompleteCallback,
         NULL);
+    if (status != ECODE_EMDRV_DMADRV_OK) {
+#if defined(DEBUG)
+        Serial.println(F("Failed to start DMADRV ping-pong transfer"));
+#endif
+        IADC_command(IADC0, iadcCmdStopScan);
+        IADC_command(IADC0, iadcCmdDisableTimer);
+        DMADRV_FreeChannel(this->dma_channel);
+        return 0;
+    }
 
     IADC_command(IADC0, iadcCmdEnableTimer);
     IADC_command(IADC0, iadcCmdStartScan);
