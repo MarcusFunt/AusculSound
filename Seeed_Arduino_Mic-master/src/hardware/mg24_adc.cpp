@@ -78,7 +78,7 @@ uint8_t MG24_ADC_Class::initLDMA() {
         buf_0,
         buf_1,
         (void *)&(IADC0->SCANFIFODATA),
-        true,
+        false,
         _buf_size ,
         dmadrvDataSize2,
         dmaCompleteCallback,
