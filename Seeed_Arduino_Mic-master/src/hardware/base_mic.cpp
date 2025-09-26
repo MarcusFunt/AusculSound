@@ -1,5 +1,7 @@
 #include "base_mic.h"
 
+#include <cstring>
+
 MicClass::MicClass(mic_config_t *mic_config)
 {
 
@@ -80,7 +82,7 @@ int MicClass::read(void* buffer, uint8_t buf_count, size_t size)
 
   resume();
 
-  return -1;
+  return static_cast<int>(size);
 }
 
 void MicClass::set_callback(void(*function)(uint16_t *buf, uint32_t buf_len))
