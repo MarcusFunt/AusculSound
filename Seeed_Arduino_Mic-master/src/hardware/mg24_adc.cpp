@@ -130,10 +130,15 @@ void MG24_ADC_Class::resume(){
 }
 
 static bool dmaCompleteCallback(unsigned int channel, unsigned int sequenceNo, void *userParam){
+    const bool evenSequence = (sequenceNo % 2u) == 0u;
+
     if (MG24_ADC_Class::_onReceive) {
-        MG24_ADC_Class::_onReceive((sequenceNo % 2) ? MG24_ADC_Class::buf_0_ptr : MG24_ADC_Class::buf_1_ptr, *MG24_ADC_Class::_buf_size_ptr);
+        MG24_ADC_Class::_onReceive(evenSequence ? MG24_ADC_Class::buf_0_ptr
+                                                : MG24_ADC_Class::buf_1_ptr,
+                                    *MG24_ADC_Class::_buf_size_ptr);
     }
-    *MG24_ADC_Class::_buf_count_ptr = sequenceNo % 2 ? 0 : 1;
+
+    *MG24_ADC_Class::_buf_count_ptr = evenSequence ? 0 : 1;
     return true;
 }
 
