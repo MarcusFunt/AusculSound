@@ -131,9 +131,10 @@ void MG24_ADC_Class::resume(){
 
 static bool dmaCompleteCallback(unsigned int channel, unsigned int sequenceNo, void *userParam){
     if (MG24_ADC_Class::_onReceive) {
-        MG24_ADC_Class::_onReceive((sequenceNo % 2) ? MG24_ADC_Class::buf_0_ptr : MG24_ADC_Class::buf_1_ptr, *MG24_ADC_Class::_buf_size_ptr);
+        uint16_t *completed_buffer = MG24_ADC_Class::completed_buffer_from_sequence(sequenceNo);
+        MG24_ADC_Class::_onReceive(completed_buffer, *MG24_ADC_Class::_buf_size_ptr);
     }
-    *MG24_ADC_Class::_buf_count_ptr = sequenceNo % 2 ? 0 : 1;
+    *MG24_ADC_Class::_buf_count_ptr = MG24_ADC_Class::buffer_index_from_sequence(sequenceNo);
     return true;
 }
 
