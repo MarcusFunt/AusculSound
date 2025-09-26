@@ -32,8 +32,8 @@ MicClass::MicClass(mic_config_t *mic_config)
 
 MicClass::~MicClass()
 {
-  delete buf_0;
-  delete buf_1;
+  delete[] buf_0;
+  delete[] buf_1;
 }
 
 uint8_t MicClass::begin()
