@@ -406,8 +406,14 @@ static void logPcmStatistics(const int16_t *buffer, size_t samples) {
 }
 
 static int16_t convertAdcSampleToPcm(uint16_t sample) {
-  int32_t value = static_cast<int32_t>(sample);
-  value -= kAdcMidpoint;
-  value <<= kAdcToPcmShift;
-  return static_cast<int16_t>(value);
+  int32_t centered = static_cast<int32_t>(sample) - kAdcMidpoint;
+  int32_t scaled = centered * (1 << kAdcToPcmShift);
+
+  if (scaled > INT16_MAX) {
+    scaled = INT16_MAX;
+  } else if (scaled < INT16_MIN) {
+    scaled = INT16_MIN;
+  }
+
+  return static_cast<int16_t>(scaled);
 }
