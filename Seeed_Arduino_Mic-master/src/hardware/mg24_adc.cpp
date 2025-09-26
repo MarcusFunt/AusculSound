@@ -13,10 +13,14 @@ void MG24_ADC_Class::initADC() {
     CMU_ClockEnable(cmuClock_GPIO, true);
     CMU_ClockSelectSet(cmuClock_IADCCLK, cmuSelect_FSRCO);
 
+    const uint32_t iadcClkSourceHz = CMU_ClockFreqGet(cmuClock_IADCCLK);
+
 
     adcInit.srcClkPrescale = IADC_calcSrcClkPrescale(IADC0, CLK_SRC_ADC_FREQ, 0);
     adcInit.warmup = iadcWarmupNormal;
     adcInit.iadcClkSuspend1 = true;
+
+    const uint32_t iadcClkHz = iadcClkSourceHz / (static_cast<uint32_t>(adcInit.srcClkPrescale) + 1u);
 
     initAllConfigs.configs[0].reference = iadcCfgReferenceInt1V2;
     initAllConfigs.configs[0].vRef = 1200;
@@ -24,10 +28,29 @@ void MG24_ADC_Class::initADC() {
     initAllConfigs.configs[0].analogGain = iadcCfgAnalogGain1x;
     initAllConfigs.configs[0].adcClkPrescale = IADC_calcAdcClkPrescale(IADC0, CLK_ADC_FREQ, 0, iadcCfgModeNormal, adcInit.srcClkPrescale);
 
-    initScan.triggerAction = iadcTriggerActionContinuous;
+    const uint32_t adcClkPrescale = static_cast<uint32_t>(initAllConfigs.configs[0].adcClkPrescale) + 1u;
+    const uint32_t adcClkHz = adcClkPrescale == 0u ? 0u : (iadcClkHz / adcClkPrescale);
+
+    uint32_t timerCycles = 0u;
+    if (_sampling_rate > 0u && adcClkHz > 0u) {
+        timerCycles = adcClkHz / _sampling_rate;
+    }
+
+    if (timerCycles == 0u) {
+        timerCycles = 1u;
+    }
+
+    if (timerCycles > 0xFFFFu) {
+        timerCycles = 0xFFFFu;
+    }
+
+    adcInit.timerCycles = static_cast<uint16_t>(timerCycles);
+
+    initScan.triggerSelect = iadcTriggerSelTimer;
+    initScan.triggerAction = iadcTriggerActionOnce;
     initScan.dataValidLevel = iadcFifoCfgDvl2;
     initScan.fifoDmaWakeup = true;
-    initScan.start = true;
+    initScan.start = false;
     initScan.alignment = iadcAlignRight12;
 
     scanTable.entries[0].posInput = IADC_INPUT_0_PORT_PIN;
@@ -37,7 +60,7 @@ void MG24_ADC_Class::initADC() {
     IADC_reset(IADC0);
     IADC_init(IADC0, &adcInit, &initAllConfigs);
     IADC_initScan(IADC0, &initScan, &scanTable);
-    GPIO->CDBUSALLOC |= GPIO_CDBUSALLOC_CDODD0_ADC0;  
+    GPIO->CDBUSALLOC |= GPIO_CDBUSALLOC_CDODD0_ADC0;
 }
 
 uint8_t MG24_ADC_Class::initLDMA() {
@@ -60,6 +83,9 @@ uint8_t MG24_ADC_Class::initLDMA() {
         dmadrvDataSize2,
         dmaCompleteCallback,
         NULL);
+
+    IADC_command(IADC0, iadcCmdEnableTimer);
+    IADC_command(IADC0, iadcCmdStartScan);
     return 1;
 }
 
@@ -75,6 +101,7 @@ void MG24_ADC_Class::end() {
     // PRS_SourceAsyncSignalSet(PRS_CHANNEL, 0, 0);
     // Stop sampling
     DMADRV_StopTransfer(this->dma_channel);
+    IADC_command(IADC0, iadcCmdDisableTimer);
 
     // Free resources
     DMADRV_FreeChannel(this->dma_channel);
