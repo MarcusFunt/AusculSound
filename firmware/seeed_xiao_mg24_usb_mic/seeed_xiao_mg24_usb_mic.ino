@@ -7,6 +7,26 @@
 constexpr uint32_t kSampleRateHz = 16000;
 constexpr size_t NUM_SAMPLES = 256;
 
+// Enable this flag to print verbose diagnostics alongside the audio stream.
+// WARNING: Any USB_SERIAL.print() calls will interleave ASCII text with the
+// raw PCM bytes, which will be heard as loud static by host applications that
+// expect pure audio data. Leave this disabled for normal streaming.
+constexpr bool kEnableDebugLogging = false;
+
+#define DEBUG_PRINT(...)                                                               \
+  do {                                                                                 \
+    if (kEnableDebugLogging) {                                                         \
+      USB_SERIAL.print(__VA_ARGS__);                                                   \
+    }                                                                                  \
+  } while (0)
+
+#define DEBUG_PRINTLN(...)                                                             \
+  do {                                                                                 \
+    if (kEnableDebugLogging) {                                                         \
+      USB_SERIAL.println(__VA_ARGS__);                                                 \
+    }                                                                                  \
+  } while (0)
+
 // The ADC on the MG24 delivers 12-bit samples. Convert them to signed 16-bit
 // PCM centred around zero for USB transmission.
 constexpr int16_t kAdcMidpoint = 1 << 11;   // 2048
@@ -60,28 +80,28 @@ void setup() {
     delay(10);
   }
 
-  USB_SERIAL.println(F("Beginning self-test suite..."));
+  DEBUG_PRINTLN(F("Beginning self-test suite..."));
   runSelfTests();
 
   s_mic.set_callback(onSamplesReady);
   if (!s_mic.begin()) {
-    USB_SERIAL.println(F("Microphone init failed"));
+    DEBUG_PRINTLN(F("Microphone init failed"));
     while (true) {
       delay(1000);
     }
   }
 
-  USB_SERIAL.println(F("XIAO MG24 microphone streaming over USB CDC"));
-  USB_SERIAL.println(F("Source: Seeed Arduino Mic DMA"));
-  USB_SERIAL.print(F("Configuration - Sample Rate: "));
-  USB_SERIAL.println(kSampleRateHz);
-  USB_SERIAL.print(F("Configuration - Num Samples per block: "));
-  USB_SERIAL.println(NUM_SAMPLES);
-  USB_SERIAL.print(F("Configuration - ADC Midpoint: "));
-  USB_SERIAL.println(kAdcMidpoint);
-  USB_SERIAL.print(F("Configuration - ADC shift: "));
-  USB_SERIAL.println(kAdcToPcmShift);
-  USB_SERIAL.println(F("Setup complete. Awaiting audio samples..."));
+  DEBUG_PRINTLN(F("XIAO MG24 microphone streaming over USB CDC"));
+  DEBUG_PRINTLN(F("Source: Seeed Arduino Mic DMA"));
+  DEBUG_PRINT(F("Configuration - Sample Rate: "));
+  DEBUG_PRINTLN(kSampleRateHz);
+  DEBUG_PRINT(F("Configuration - Num Samples per block: "));
+  DEBUG_PRINTLN(NUM_SAMPLES);
+  DEBUG_PRINT(F("Configuration - ADC Midpoint: "));
+  DEBUG_PRINTLN(kAdcMidpoint);
+  DEBUG_PRINT(F("Configuration - ADC shift: "));
+  DEBUG_PRINTLN(kAdcToPcmShift);
+  DEBUG_PRINTLN(F("Setup complete. Awaiting audio samples..."));
 }
 
 void loop() {
@@ -89,12 +109,12 @@ void loop() {
 
   const uint32_t nowMs = millis();
   if (nowMs - s_lastLoopEntryMs > 1000) {
-    USB_SERIAL.print(F("Loop heartbeat - ms since last log: "));
-    USB_SERIAL.println(nowMs - s_lastLoopEntryMs);
-    USB_SERIAL.print(F("Callback count so far: "));
-    USB_SERIAL.println(s_callbackCount);
-    USB_SERIAL.print(F("Blocks streamed so far: "));
-    USB_SERIAL.println(s_streamedBlocks);
+    DEBUG_PRINT(F("Loop heartbeat - ms since last log: "));
+    DEBUG_PRINTLN(nowMs - s_lastLoopEntryMs);
+    DEBUG_PRINT(F("Callback count so far: "));
+    DEBUG_PRINTLN(s_callbackCount);
+    DEBUG_PRINT(F("Blocks streamed so far: "));
+    DEBUG_PRINTLN(s_streamedBlocks);
   }
   s_lastLoopEntryMs = nowMs;
 
@@ -115,7 +135,7 @@ void loop() {
 
 static void onSamplesReady(uint16_t *buffer, uint32_t length) {
   if (length == 0) {
-    USB_SERIAL.println(F("onSamplesReady invoked with zero length buffer"));
+    DEBUG_PRINTLN(F("onSamplesReady invoked with zero length buffer"));
     return;
   }
 
@@ -126,15 +146,15 @@ static void onSamplesReady(uint16_t *buffer, uint32_t length) {
   s_samplesReady = true;
   ++s_callbackCount;
 
-  USB_SERIAL.print(F("onSamplesReady - raw length: "));
-  USB_SERIAL.println(length);
-  USB_SERIAL.print(F("onSamplesReady - samples copied: "));
-  USB_SERIAL.println(samples);
+  DEBUG_PRINT(F("onSamplesReady - raw length: "));
+  DEBUG_PRINTLN(length);
+  DEBUG_PRINT(F("onSamplesReady - samples copied: "));
+  DEBUG_PRINTLN(samples);
 }
 
 static void streamPcmBlock(const uint16_t *buffer, size_t samples) {
   if (samples == 0) {
-    USB_SERIAL.println(F("streamPcmBlock invoked with zero samples"));
+    DEBUG_PRINTLN(F("streamPcmBlock invoked with zero samples"));
     return;
   }
 
@@ -150,74 +170,80 @@ static void streamPcmBlock(const uint16_t *buffer, size_t samples) {
   logPcmStatistics(s_pcmBuffer, samples);
 
   ++s_streamedBlocks;
-  USB_SERIAL.print(F("streamPcmBlock - block index: "));
-  USB_SERIAL.println(s_streamedBlocks);
-  USB_SERIAL.print(F("streamPcmBlock - bytes written: "));
-  USB_SERIAL.println(bytesToWrite);
+  DEBUG_PRINT(F("streamPcmBlock - block index: "));
+  DEBUG_PRINTLN(s_streamedBlocks);
+  DEBUG_PRINT(F("streamPcmBlock - bytes written: "));
+  DEBUG_PRINTLN(bytesToWrite);
 }
 
 static void runSelfTests() {
+  if (!kEnableDebugLogging) {
+    return;
+  }
   bool allPassed = true;
 
   if (testAdcConversionRange()) {
-    USB_SERIAL.println(F("Self-test: ADC conversion range - PASS"));
+    DEBUG_PRINTLN(F("Self-test: ADC conversion range - PASS"));
   } else {
-    USB_SERIAL.println(F("Self-test: ADC conversion range - FAIL"));
+    DEBUG_PRINTLN(F("Self-test: ADC conversion range - FAIL"));
     allPassed = false;
   }
 
   if (testMicConfig()) {
-    USB_SERIAL.println(F("Self-test: Microphone configuration - PASS"));
+    DEBUG_PRINTLN(F("Self-test: Microphone configuration - PASS"));
   } else {
-    USB_SERIAL.println(F("Self-test: Microphone configuration - FAIL"));
+    DEBUG_PRINTLN(F("Self-test: Microphone configuration - FAIL"));
     allPassed = false;
   }
 
   if (testBufferSizes()) {
-    USB_SERIAL.println(F("Self-test: Buffer sizes - PASS"));
+    DEBUG_PRINTLN(F("Self-test: Buffer sizes - PASS"));
   } else {
-    USB_SERIAL.println(F("Self-test: Buffer sizes - FAIL"));
+    DEBUG_PRINTLN(F("Self-test: Buffer sizes - FAIL"));
     allPassed = false;
   }
 
   if (testPcmSignedRange()) {
-    USB_SERIAL.println(F("Self-test: PCM signed range - PASS"));
+    DEBUG_PRINTLN(F("Self-test: PCM signed range - PASS"));
   } else {
-    USB_SERIAL.println(F("Self-test: PCM signed range - FAIL"));
+    DEBUG_PRINTLN(F("Self-test: PCM signed range - FAIL"));
     allPassed = false;
   }
 
   if (allPassed) {
-    USB_SERIAL.println(F("All self-tests passed."));
+    DEBUG_PRINTLN(F("All self-tests passed."));
   } else {
-    USB_SERIAL.println(F("One or more self-tests failed. Streaming will continue with caution."));
+    DEBUG_PRINTLN(F("One or more self-tests failed. Streaming will continue with caution."));
   }
 }
 
 static bool testAdcConversionRange() {
+  if (!kEnableDebugLogging) {
+    return true;
+  }
   bool success = true;
 
   const int16_t minSample = convertAdcSampleToPcm(0);
   const int16_t midSample = convertAdcSampleToPcm(kAdcMidpoint);
   const int16_t maxSample = convertAdcSampleToPcm((1u << 12) - 1);
 
-  USB_SERIAL.print(F("Test ADC Conversion - min raw 0 -> "));
-  USB_SERIAL.println(minSample);
-  USB_SERIAL.print(F("Test ADC Conversion - midpoint raw -> "));
-  USB_SERIAL.println(midSample);
-  USB_SERIAL.print(F("Test ADC Conversion - max raw -> "));
-  USB_SERIAL.println(maxSample);
+  DEBUG_PRINT(F("Test ADC Conversion - min raw 0 -> "));
+  DEBUG_PRINTLN(minSample);
+  DEBUG_PRINT(F("Test ADC Conversion - midpoint raw -> "));
+  DEBUG_PRINTLN(midSample);
+  DEBUG_PRINT(F("Test ADC Conversion - max raw -> "));
+  DEBUG_PRINTLN(maxSample);
 
   if (midSample != 0) {
-    USB_SERIAL.println(F("Expected midpoint to convert to 0"));
+    DEBUG_PRINTLN(F("Expected midpoint to convert to 0"));
     success = false;
   }
   if (minSample >= 0) {
-    USB_SERIAL.println(F("Expected min sample to be negative"));
+    DEBUG_PRINTLN(F("Expected min sample to be negative"));
     success = false;
   }
   if (maxSample <= 0) {
-    USB_SERIAL.println(F("Expected max sample to be positive"));
+    DEBUG_PRINTLN(F("Expected max sample to be positive"));
     success = false;
   }
 
@@ -225,49 +251,55 @@ static bool testAdcConversionRange() {
 }
 
 static bool testMicConfig() {
+  if (!kEnableDebugLogging) {
+    return true;
+  }
   bool success = true;
 
   if (s_micConfig.channel_cnt != 1) {
-    USB_SERIAL.print(F("Unexpected channel count: "));
-    USB_SERIAL.println(s_micConfig.channel_cnt);
+    DEBUG_PRINT(F("Unexpected channel count: "));
+    DEBUG_PRINTLN(s_micConfig.channel_cnt);
     success = false;
   }
   if (s_micConfig.sampling_rate != kSampleRateHz) {
-    USB_SERIAL.print(F("Unexpected sampling rate: "));
-    USB_SERIAL.println(s_micConfig.sampling_rate);
+    DEBUG_PRINT(F("Unexpected sampling rate: "));
+    DEBUG_PRINTLN(s_micConfig.sampling_rate);
     success = false;
   }
   if (s_micConfig.buf_size != NUM_SAMPLES) {
-    USB_SERIAL.print(F("Unexpected buffer size: "));
-    USB_SERIAL.println(s_micConfig.buf_size);
+    DEBUG_PRINT(F("Unexpected buffer size: "));
+    DEBUG_PRINTLN(s_micConfig.buf_size);
     success = false;
   }
 
-  USB_SERIAL.print(F("Mic config debug - channel count: "));
-  USB_SERIAL.println(s_micConfig.channel_cnt);
-  USB_SERIAL.print(F("Mic config debug - sampling rate: "));
-  USB_SERIAL.println(s_micConfig.sampling_rate);
-  USB_SERIAL.print(F("Mic config debug - buffer size: "));
-  USB_SERIAL.println(s_micConfig.buf_size);
-  USB_SERIAL.print(F("Mic config debug - debug pin: "));
-  USB_SERIAL.println(s_micConfig.debug_pin);
+  DEBUG_PRINT(F("Mic config debug - channel count: "));
+  DEBUG_PRINTLN(s_micConfig.channel_cnt);
+  DEBUG_PRINT(F("Mic config debug - sampling rate: "));
+  DEBUG_PRINTLN(s_micConfig.sampling_rate);
+  DEBUG_PRINT(F("Mic config debug - buffer size: "));
+  DEBUG_PRINTLN(s_micConfig.buf_size);
+  DEBUG_PRINT(F("Mic config debug - debug pin: "));
+  DEBUG_PRINTLN(s_micConfig.debug_pin);
 
   return success;
 }
 
 static bool testBufferSizes() {
+  if (!kEnableDebugLogging) {
+    return true;
+  }
   bool success = true;
 
   const size_t captureCount = sizeof(s_captureBuffer) / sizeof(s_captureBuffer[0]);
   const size_t processingCount = sizeof(s_processingBuffer) / sizeof(s_processingBuffer[0]);
   const size_t pcmCount = sizeof(s_pcmBuffer) / sizeof(s_pcmBuffer[0]);
 
-  USB_SERIAL.print(F("Buffer size debug - capture count: "));
-  USB_SERIAL.println(captureCount);
-  USB_SERIAL.print(F("Buffer size debug - processing count: "));
-  USB_SERIAL.println(processingCount);
-  USB_SERIAL.print(F("Buffer size debug - pcm count: "));
-  USB_SERIAL.println(pcmCount);
+  DEBUG_PRINT(F("Buffer size debug - capture count: "));
+  DEBUG_PRINTLN(captureCount);
+  DEBUG_PRINT(F("Buffer size debug - processing count: "));
+  DEBUG_PRINTLN(processingCount);
+  DEBUG_PRINT(F("Buffer size debug - pcm count: "));
+  DEBUG_PRINTLN(pcmCount);
 
   if (captureCount != NUM_SAMPLES) {
     success = false;
@@ -283,6 +315,9 @@ static bool testBufferSizes() {
 }
 
 static bool testPcmSignedRange() {
+  if (!kEnableDebugLogging) {
+    return true;
+  }
   bool success = true;
 
   int16_t minValue = INT16_MAX;
@@ -298,22 +333,22 @@ static bool testPcmSignedRange() {
     }
   }
 
-  USB_SERIAL.print(F("PCM range debug - min value: "));
-  USB_SERIAL.println(minValue);
-  USB_SERIAL.print(F("PCM range debug - max value: "));
-  USB_SERIAL.println(maxValue);
+  DEBUG_PRINT(F("PCM range debug - min value: "));
+  DEBUG_PRINTLN(minValue);
+  DEBUG_PRINT(F("PCM range debug - max value: "));
+  DEBUG_PRINTLN(maxValue);
 
   if (minValue < INT16_MIN) {
-    USB_SERIAL.println(F("PCM minimum exceeded INT16_MIN"));
+    DEBUG_PRINTLN(F("PCM minimum exceeded INT16_MIN"));
     success = false;
   }
   if (maxValue > INT16_MAX) {
-    USB_SERIAL.println(F("PCM maximum exceeded INT16_MAX"));
+    DEBUG_PRINTLN(F("PCM maximum exceeded INT16_MAX"));
     success = false;
   }
 
   if (minValue >= maxValue) {
-    USB_SERIAL.println(F("PCM min should be less than max"));
+    DEBUG_PRINTLN(F("PCM min should be less than max"));
     success = false;
   }
 
@@ -321,6 +356,9 @@ static bool testPcmSignedRange() {
 }
 
 static void logBufferStatistics(const uint16_t *buffer, size_t samples) {
+  if (!kEnableDebugLogging) {
+    return;
+  }
   uint16_t minValue = UINT16_MAX;
   uint16_t maxValue = 0;
   uint32_t sum = 0;
@@ -334,15 +372,18 @@ static void logBufferStatistics(const uint16_t *buffer, size_t samples) {
 
   const uint32_t average = samples > 0 ? sum / samples : 0;
 
-  USB_SERIAL.print(F("Capture stats - min: "));
-  USB_SERIAL.print(minValue);
-  USB_SERIAL.print(F(", max: "));
-  USB_SERIAL.print(maxValue);
-  USB_SERIAL.print(F(", avg: "));
-  USB_SERIAL.println(average);
+  DEBUG_PRINT(F("Capture stats - min: "));
+  DEBUG_PRINT(minValue);
+  DEBUG_PRINT(F(", max: "));
+  DEBUG_PRINT(maxValue);
+  DEBUG_PRINT(F(", avg: "));
+  DEBUG_PRINTLN(average);
 }
 
 static void logPcmStatistics(const int16_t *buffer, size_t samples) {
+  if (!kEnableDebugLogging) {
+    return;
+  }
   int16_t minValue = INT16_MAX;
   int16_t maxValue = INT16_MIN;
   int32_t sum = 0;
@@ -356,12 +397,12 @@ static void logPcmStatistics(const int16_t *buffer, size_t samples) {
 
   const int32_t average = samples > 0 ? sum / static_cast<int32_t>(samples) : 0;
 
-  USB_SERIAL.print(F("PCM stats - min: "));
-  USB_SERIAL.print(minValue);
-  USB_SERIAL.print(F(", max: "));
-  USB_SERIAL.print(maxValue);
-  USB_SERIAL.print(F(", avg: "));
-  USB_SERIAL.println(average);
+  DEBUG_PRINT(F("PCM stats - min: "));
+  DEBUG_PRINT(minValue);
+  DEBUG_PRINT(F(", max: "));
+  DEBUG_PRINT(maxValue);
+  DEBUG_PRINT(F(", avg: "));
+  DEBUG_PRINTLN(average);
 }
 
 static int16_t convertAdcSampleToPcm(uint16_t sample) {

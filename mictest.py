@@ -27,12 +27,15 @@ ser.reset_input_buffer()
 def audio_callback(outdata, frames, time, status):
     if status:
         print(status)
+    outdata.fill(0)
     # Each sample is 2 bytes (little-endian signed PCM from the firmware)
     expected_bytes = CHUNK_SAMPLES * 2
     raw = ser.read(expected_bytes)
+    if len(raw) != expected_bytes:
+        return
     # Convert to numpy array of signed 16-bit samples
     samples = np.frombuffer(raw, dtype=np.int16)
-    outdata[:len(samples), 0] = samples / 32768.0  # normalize to [-1, 1]
+    outdata[:len(samples), 0] = samples.astype(np.float32) / 32768.0  # normalize to [-1, 1]
 
 # Open an audio output stream
 with sd.OutputStream(

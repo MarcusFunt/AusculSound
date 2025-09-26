@@ -10,6 +10,9 @@ The sketch captures 12-bit samples from the microphone connected to pin `PC9` us
 
 - `kSampleRateHz` controls the audio sampling rate (default 16 kHz).
 - `NUM_SAMPLES` adjusts the USB packet size (default 256 samples).
+- `kEnableDebugLogging` toggles verbose serial logging. Leave this set to
+  `false` when streaming audio to avoid interleaving ASCII text with the PCM
+  byte stream, which presents as loud static on the host side.
 
 These constants can be tuned in the sketch to match the bandwidth and latency needs of your project.
 
