@@ -19,19 +19,19 @@ int main() {
     mic.buf_1[i] = static_cast<uint16_t>((i + 1) * 10);
   }
 
-  if (MicClass::completed_buffer_from_sequence(0) != mic.buf_0) {
+  if (MicClass::completed_buffer_from_sequence(0) != mic.buf_1) {
     return 1;
   }
 
-  if (MicClass::completed_buffer_from_sequence(1) != mic.buf_1) {
+  if (MicClass::completed_buffer_from_sequence(1) != mic.buf_0) {
     return 2;
   }
 
-  if (MicClass::buffer_index_from_sequence(0) != 0) {
+  if (MicClass::buffer_index_from_sequence(0) != 1) {
     return 3;
   }
 
-  if (MicClass::buffer_index_from_sequence(1) != 1) {
+  if (MicClass::buffer_index_from_sequence(1) != 0) {
     return 4;
   }
 
@@ -40,13 +40,13 @@ int main() {
 
   *MicClass::_buf_count_ptr = MicClass::buffer_index_from_sequence(0);
   mic.read(destination.data(), *MicClass::_buf_count_ptr, kBytesToCopy);
-  if (!std::equal(destination.begin(), destination.end(), mic.buf_0)) {
+  if (!std::equal(destination.begin(), destination.end(), mic.buf_1)) {
     return 5;
   }
 
   *MicClass::_buf_count_ptr = MicClass::buffer_index_from_sequence(1);
   mic.read(destination.data(), *MicClass::_buf_count_ptr, kBytesToCopy);
-  if (!std::equal(destination.begin(), destination.end(), mic.buf_1)) {
+  if (!std::equal(destination.begin(), destination.end(), mic.buf_0)) {
     return 6;
   }
 

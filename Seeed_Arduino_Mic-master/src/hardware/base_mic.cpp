@@ -94,11 +94,16 @@ void MicClass::set_callback(void(*function)(uint16_t *buf, uint32_t buf_len))
 
 uint16_t *MicClass::completed_buffer_from_sequence(unsigned int sequence_no)
 {
-  return (sequence_no % 2u) == 0u ? buf_0_ptr : buf_1_ptr;
+  // The Silicon Labs DMADRV ping-pong helper reports the sequence number of the
+  // descriptor that *started* the transfer that just finished.  This means the
+  // freshly completed audio samples live in the opposite buffer from the one
+  // indicated by the sequence number that the ISR receives.
+  const bool completed_primary = (sequence_no % 2u) == 0u;
+  return completed_primary ? buf_1_ptr : buf_0_ptr;
 }
 
 uint8_t MicClass::buffer_index_from_sequence(unsigned int sequence_no)
 {
-  return (sequence_no % 2u) == 0u ? 0u : 1u;
+  return (sequence_no % 2u) == 0u ? 1u : 0u;
 }
 
