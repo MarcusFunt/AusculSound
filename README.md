@@ -20,6 +20,8 @@ These constants can be tuned in the sketch to match the bandwidth and latency ne
 
 1. Install the **Seeed Studio MG24 Boards** core in the Arduino IDE.
 2. Copy the **Seeed_Arduino_Mic** library from `Seeed_Arduino_Mic-master` into your Arduino `libraries` folder (or install it through the Arduino Library Manager).
+   This repository vendors a trimmed copy of the upstream library that only
+   contains the MG24 driver code required by the firmware.
 3. Select **Seeed Studio XIAO MG24** (or XIAO MG24 Sense) as the target board.
 4. Open the sketch located at `firmware/seeed_xiao_mg24_usb_mic/seeed_xiao_mg24_usb_mic.ino`.
 5. Compile and upload the sketch to the board using the Arduino IDE.

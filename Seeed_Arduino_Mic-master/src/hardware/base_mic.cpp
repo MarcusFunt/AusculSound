@@ -10,24 +10,17 @@ MicClass::MicClass(mic_config_t *mic_config)
   _buf_size = mic_config->buf_size;
   _sampling_rate = mic_config->sampling_rate;
 
-  switch (mic_config->channel_cnt) {
-    case 1:
-      break;
-    default:
-      break;   
-  }
-
   buf_0 = new uint16_t[_buf_size];
   buf_1 = new uint16_t[_buf_size];
 
   _buf_count_ptr = &_buf_count;
-  _buf_size_ptr = &_buf_size; 
+  _buf_size_ptr = &_buf_size;
   buf_0_ptr = buf_0;
   buf_1_ptr = buf_1;
 
   if (_debug_pin) {
-  pinMode(_debug_pin, OUTPUT);
-  _debug_pin_ptr = &_debug_pin;
+    pinMode(_debug_pin, OUTPUT);
+    _debug_pin_ptr = &_debug_pin;
   }
 
 }
