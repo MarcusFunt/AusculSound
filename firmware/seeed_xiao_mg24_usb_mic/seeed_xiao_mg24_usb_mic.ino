@@ -3,6 +3,8 @@
 #include <cstring>
 #include <climits>
 
+#include "pcm_conversion.h"
+
 // Audio configuration. Increase NUM_SAMPLES to trade latency for throughput.
 constexpr uint32_t kSampleRateHz = 16000;
 constexpr size_t NUM_SAMPLES = 256;
@@ -27,10 +29,9 @@ constexpr bool kEnableDebugLogging = false;
     }                                                                                  \
   } while (0)
 
-// The ADC on the MG24 delivers 12-bit samples. Convert them to signed 16-bit
-// PCM centred around zero for USB transmission.
-constexpr int16_t kAdcMidpoint = 1 << 11;   // 2048
-constexpr uint8_t kAdcToPcmShift = 16 - 12; // Shift left by 4 bits
+using ausculsound::ConvertAdcSampleToPcm;
+using ausculsound::kAdcMidpoint;
+using ausculsound::kAdcToPcmShift;
 
 // Helper macro to pick the correct USB CDC serial port symbol provided by the
 // Seeed Studio MG24 Arduino core.
@@ -71,7 +72,6 @@ static bool testBufferSizes();
 static bool testPcmSignedRange();
 static void logBufferStatistics(const uint16_t *buffer, size_t samples);
 static void logPcmStatistics(const int16_t *buffer, size_t samples);
-static int16_t convertAdcSampleToPcm(uint16_t sample);
 
 void setup() {
   USB_SERIAL.begin(115200);
@@ -161,7 +161,7 @@ static void streamPcmBlock(const uint16_t *buffer, size_t samples) {
   logBufferStatistics(buffer, samples);
 
   for (size_t i = 0; i < samples; ++i) {
-    s_pcmBuffer[i] = convertAdcSampleToPcm(buffer[i]);
+    s_pcmBuffer[i] = ConvertAdcSampleToPcm(buffer[i]);
   }
 
   const size_t bytesToWrite = samples * sizeof(s_pcmBuffer[0]);
@@ -223,9 +223,9 @@ static bool testAdcConversionRange() {
   }
   bool success = true;
 
-  const int16_t minSample = convertAdcSampleToPcm(0);
-  const int16_t midSample = convertAdcSampleToPcm(kAdcMidpoint);
-  const int16_t maxSample = convertAdcSampleToPcm((1u << 12) - 1);
+  const int16_t minSample = ConvertAdcSampleToPcm(0);
+  const int16_t midSample = ConvertAdcSampleToPcm(kAdcMidpoint);
+  const int16_t maxSample = ConvertAdcSampleToPcm((1u << ausculsound::kAdcResolutionBits) - 1);
 
   DEBUG_PRINT(F("Test ADC Conversion - min raw 0 -> "));
   DEBUG_PRINTLN(minSample);
@@ -324,7 +324,7 @@ static bool testPcmSignedRange() {
   int16_t maxValue = INT16_MIN;
 
   for (uint16_t raw = 0; raw < (1u << 12); ++raw) {
-    const int16_t pcm = convertAdcSampleToPcm(raw);
+    const int16_t pcm = ConvertAdcSampleToPcm(raw);
     if (pcm < minValue) {
       minValue = pcm;
     }
@@ -405,15 +405,4 @@ static void logPcmStatistics(const int16_t *buffer, size_t samples) {
   DEBUG_PRINTLN(average);
 }
 
-static int16_t convertAdcSampleToPcm(uint16_t sample) {
-  int32_t centered = static_cast<int32_t>(sample) - kAdcMidpoint;
-  int32_t scaled = centered * (1 << kAdcToPcmShift);
-
-  if (scaled > INT16_MAX) {
-    scaled = INT16_MAX;
-  } else if (scaled < INT16_MIN) {
-    scaled = INT16_MIN;
-  }
-
-  return static_cast<int16_t>(scaled);
-}
+// Conversion handled by pcm_conversion.h
