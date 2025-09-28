@@ -129,7 +129,7 @@ void MG24_ADC_Class::resume(){
     DMADRV_ResumeTransfer(this->dma_channel);
 }
 
-static bool dmaCompleteCallback(unsigned int channel, unsigned int sequenceNo, void *userParam){
+static bool dmaCompleteCallback(unsigned int /*channel*/, unsigned int sequenceNo, void * /*userParam*/){
     if (MG24_ADC_Class::_onReceive) {
         uint16_t *completed_buffer = MG24_ADC_Class::completed_buffer_from_sequence(sequenceNo);
         MG24_ADC_Class::_onReceive(completed_buffer, *MG24_ADC_Class::_buf_size_ptr);

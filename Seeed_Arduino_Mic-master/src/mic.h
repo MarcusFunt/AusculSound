@@ -19,12 +19,11 @@
 #define MIC_H_INCLUDED
 
 #include <Arduino.h>
-#include "hardware/dma_adc.h"
-#include "hardware/nrf52840_adc.h"
+
+#if !defined(ARDUINO_XIAO_MG24)
+#error "This library targets the Seeed Studio XIAO MG24 platform"
+#endif
+
 #include "hardware/mg24_adc.h"
 
-#if !defined(WIO_TERMINAL) && !defined(ARDUINO_ARCH_NRF52840) && !defined(ARDUINO_SILABS)
-#error "This library targets Wio Terminal boards, XIAO BLE and XIAO MG24 at the moment"
-#endif
-
-#endif
+#endif  // MIC_H_INCLUDED
